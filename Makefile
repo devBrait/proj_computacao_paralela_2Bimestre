@@ -7,28 +7,40 @@ CC = gcc
 
 # Flags de compilação
 # -Wall para mostrar todos os warnings
+# -fopenmp para suporte a OpenMP
 CFLAGS = -Wall -O3 -fopenmp 
+# Flags de linkagem
+LDFLAGS = -fopenmp
 
-# Lista de dependências e objetos
+# Cabeçalhos
 DEPS = hash_table.h
+
+# Objeto comum da tabela hash
 OBJ_COMMON = hash_table.o
-OBJ_SEQ = analyzer_seq.o
 
-# Regra principal (por enquanto gera apenas o sequencial)
-all: analyzer_seq
+# Nome dos arquivos fonte
+SEQ_SOURCE = analyzer_seq.c
 
-# Compila a hash_table (genérico)
-hash_table.o: hash_table.c $(DEPS)
+# Objetos dos executáveis
+SEQ_OBJ = analyzer_seq.o
+
+# Executáveis finais
+SEQ_TARGET = analyzer_seq
+
+# Regra para compilar as três versões
+all: $(SEQ_TARGET) 
+
+# Compilação da hash_table
+$(OBJ_COMMON): hash_table.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-# Compila o analyzer_seq
-analyzer_seq.o: analyzer_seq.c $(DEPS)
+# Compilação e linkagem das versões sequencial e paralelas
+$(SEQ_OBJ): $(SEQ_SOURCE) $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-# Linka o executável final
-analyzer_seq: $(OBJ_SEQ) $(OBJ_COMMON)
-	$(CC) -o analyzer_seq $(OBJ_SEQ) $(OBJ_COMMON) $(CFLAGS)
+$(SEQ_TARGET): $(SEQ_OBJ) $(OBJ_COMMON)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-# Limpeza dos arquivos compilados
+# Limpeza dos arquivos compilados, incluindo o arquivo de resultados
 clean:
 	rm -f *.o analyzer_seq results.csv
