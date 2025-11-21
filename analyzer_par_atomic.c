@@ -48,6 +48,7 @@ int get_url(const char* line, char* url_out, size_t buffer_size) {
     return 1;
 }
 
+
 // Função de Carregamento do Arquivo Manifest.txt
 void load_manifest(HashTable* ht, const char* filename) {
 
@@ -122,7 +123,7 @@ void clean_log_memory(logStruct log) {
 }
 
 int main(int argc, char* argv[]) {
-    
+
     // Verifica se os parametros foram passados corretamente
     const char* log_file = (argc > 1) ? argv[1] : NULL;
     int num_threads = (argc > 2) ? atoi(argv[2]) : 0;
@@ -148,32 +149,31 @@ int main(int argc, char* argv[]) {
     // Carrega todo o log na memória
     logStruct log = load_log_memory(log_file);
     printf("Log carregado na memória: %ld linhas.\n", log.count);
-
-
-    // Inicia a seção paralela com omp critical
+    
+    // Inicia a seção paralela com omp atomic
     double start_time = omp_get_wtime();
 
     #pragma omp parallel for
     for (long i = 0; i < log.count; i++) {
+        char url_buf[BUFFER_SIZE];
+        
+        if (!get_url(log.lines[i], url_buf, sizeof(url_buf))) {
+            continue; 
+        }
 
-        char url_buf[BUFFER_SIZE]; // buffer temporário para a URL
-        if (!get_url(log.lines[i], url_buf, sizeof(url_buf))) continue; // Caso não extraia a URL vai para próxima linha
-
-        CacheNode* node = ht_get(ht, url_buf); // Procura na hash table
+        CacheNode* node = ht_get(ht, url_buf);
         if (node) {
-            #pragma omp critical // Seção crítica para atualizar o contador de hits
-            {
-                node->hit_count++;
-            }
+            #pragma omp atomic // Uso de atomic para incrementar o contador de hits
+            node->hit_count++;
         }
     }
     double end_time = omp_get_wtime(); // Marca o tempo de fim da seção paralela
 
     // Exibe resultados finais e salva o result.csv
-    printf("Tempo Paralelo (critical): %f s\n", end_time - start_time);
+    printf("Tempo Paralelo (atomic): %f s\n", end_time - start_time);
     ht_save_results(ht, "results.csv");
     clean_log_memory(log);
     ht_destroy(ht);
-
+    
     return 0;
 }
