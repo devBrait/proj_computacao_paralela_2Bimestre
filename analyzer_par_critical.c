@@ -9,11 +9,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <omp.h> 
+#include <omp.h>
 #include "hash_table.h"
 
 // Declarações de constantes
-#define TABLE_SIZE 150000 
+#define TABLE_SIZE 150000
 #define BUFFER_SIZE 4096
 #define MANIFEST_FILE "manifest.txt"
 
@@ -53,7 +53,7 @@ void load_manifest(HashTable* ht, const char* filename) {
 
     FILE* file = fopen(filename, "r");
     if (!file) { 
-        printf("Erro ao abrir o arquivo manifest.txt!\n");
+        printf("Erro ao abrir o arquivo manifest.txt\n");
         exit(1);
     }
 
@@ -75,7 +75,7 @@ logStruct load_log_memory(const char* filename) {
 
     FILE* file = fopen(filename, "r");
     if (!file) { 
-        printf("Erro ao abrir o arquivo de log!\n");
+        fprintf(stderr, "Erro ao abrir o arquivo de log!\n");
         exit(1); 
     }
 
@@ -112,7 +112,7 @@ logStruct load_log_memory(const char* filename) {
     return (logStruct){lines, count};
 }
 
-// Libera a memória do log carregado
+// Libera a memória do log carregado 
 void clean_log_memory(logStruct log) {
     if (!log.lines) return;
     for (long i = 0; i < log.count; i++) {
@@ -122,33 +122,55 @@ void clean_log_memory(logStruct log) {
 }
 
 int main(int argc, char* argv[]) {
-
-    // Verifica se o arquivo de log foi fornecido como argumento
+    
+    // Verifica se os parametros foram passados corretamente
     const char* log_file = (argc > 1) ? argv[1] : NULL;
-    if(log_file == NULL) {
-        printf("Uso correto: %s <arquivo_log>\n", argv[0]);
+    int num_threads = (argc > 2) ? atoi(argv[2]) : 0;
+
+    if (log_file == NULL || num_threads <= 0) {
+        printf("Uso: %s <arquivo_log> [num_threads]\n", argv[0]);
+        printf("Observação: num_threads deve ser maior que 0!\n");
         return 1;
     }
 
-    HashTable* ht = ht_create(TABLE_SIZE); // Cria a tabela hash
-    load_manifest(ht, MANIFEST_FILE); // Carrega o arquivo manifest.txt
-    
-    logStruct log = load_log_memory(log_file); // Carrega o log na memória
+    // Define o número de threads para OpenMP
+    omp_set_num_threads(num_threads);
+    printf("Executando com %d threads.\n", num_threads);
+
+    // Cria a hash table e carrega o manifest.txt
+    HashTable* ht = ht_create(TABLE_SIZE);
+    if (!ht) {
+        printf("Falha ao criar a hash table!\n");
+        return 1;
+    }
+    load_manifest(ht, MANIFEST_FILE);
+
+    // Carrega todo o log na memória
+    logStruct log = load_log_memory(log_file);
     printf("Log carregado na memória: %ld linhas.\n", log.count);
 
-    double start = omp_get_wtime(); // Início da medição de tempo
+
+    // Inicia a seção paralela com omp critical
+    double start_time = omp_get_wtime();
+
+    #pragma omp parallel for
     for (long i = 0; i < log.count; i++) {
 
         char url_buf[BUFFER_SIZE]; // buffer temporário para a URL
-        if (!get_url(log.lines[i], url_buf, sizeof(url_buf))) continue;// Caso não extraia a URL vai para próxima linha
+        if (!get_url(log.lines[i], url_buf, sizeof(url_buf))) continue; // Caso não extraia a URL vai para próxima linha
 
         CacheNode* node = ht_get(ht, url_buf); // Procura na hash table
-        if (node) node->hit_count++; 
-    }   
-    double end = omp_get_wtime();
+        if (node) {
+            #pragma omp critical
+            {
+                node->hit_count++;
+            }
+        }
+    }
+    double end_time = omp_get_wtime();
 
     // Exibe resultados finais e salva o result.csv
-    printf("Tempo Sequencial: %f s \n", end - start);
+    printf("Tempo Paralelo (critical): %f s\n", end_time - start_time);
     ht_save_results(ht, "results.csv");
     clean_log_memory(log);
     ht_destroy(ht);
