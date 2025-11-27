@@ -148,7 +148,7 @@ int main(int argc, char* argv[]) {
     double end = omp_get_wtime();
 
     // Exibe resultados finais e salva o result.csv
-    printf("Tempo Sequencial: %f s \n", end - start);
+    printf("Tempo Sequencial: %f segundos\n", end - start);
     ht_save_results(ht, "results.csv");
     clean_log_memory(log);
     ht_destroy(ht);

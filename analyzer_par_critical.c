@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
     double end_time = omp_get_wtime(); // Marca o tempo de fim da seção paralela
 
     // Exibe resultados finais e salva o result.csv
-    printf("Tempo Paralelo (critical): %f s\n", end_time - start_time);
+    printf("Tempo Paralelo (critical): %f segundos\n", end_time - start_time);
     ht_save_results(ht, "results.csv");
     clean_log_memory(log);
     ht_destroy(ht);
